@@ -1,0 +1,30 @@
+on:
+  push:
+    branches:
+      - 'feature/*'
+  
+jobs:
+  run-analysis:
+    name: Run Challenge AI Java
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Sonar
+        env:
+          SONAR_PASSWORD: ${{ secrets.SONAR_PASSWORD }}
+        run: |
+          docker run -d -p 9500:9000 sonarqube
+          status_code="-1"
+          while [[ "$status_code" -ne 204 ]]
+          do
+            status_code=$(curl  -u admin:admin -X POST --write-out '%{http_code}' --silent --output /dev/null "http://localhost:9500/api/users/change_password?login=admin&previousPassword=admin&password=${SONAR_PASSWORD}")    
+          done
+          echo "Sonar Ready to Operate"
+          PROJECT_CREATION_RESPONSE=$(curl  -u admin:${SONAR_PASSWORD}  --silent  -X POST  "http://localhost:9500/api/projects/create?name=test-project&organization=Fullstacklabs&project=test-project&visibility=public")
+          PROJECT_KEY=$( echo  $PROJECT_CREATION_RESPONSE | jq -r .project.key)
+          #echo $PROJECT_KEY
+          PROJECT_TOKEN_RESPONSE=$(curl   -u admin:${SONAR_PASSWORD}  --silent -X POST  "http://localhost:9500/api/user_tokens/generate?name=test-project-token&projectKey=${PROJECT_KEY}&type=PROJECT_ANALYSIS_TOKEN")
+          TOKEN_KEY=$(echo $PROJECT_TOKEN_RESPONSE | jq -r .token)
+          echo "TOKEN_KEY=$TOKEN_KEY" >> $GITHUB_ENV          
+      - name: Execute Challenge Statistics
+        run: echo $TOKEN_KEY
+        
